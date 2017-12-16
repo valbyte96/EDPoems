@@ -27,7 +27,10 @@ public class Grammar {
 	/**global fields for properties*/
 	public static Properties props = new Properties();
 	public static StanfordCoreNLP pipeline;
-	public static final double avgLength = 5; //Change; average length of ED Poem
+	public static final double avgLength = 15; //Change; average length of lines for ED Poem
+	public static final double poemLength = 13;
+	public static String[] illPOS = {"CC", "SYM", "PRP"};
+	
 	
 	
 	/**	
@@ -35,23 +38,33 @@ public class Grammar {
 	 * @return fitness: double value between 0 and 1
 	 * [0] = absolutely unsuccessful; (0, 1) = partially successful; [1] = absolution successful
 	 */
-	public static double evaluate(String[] poems) {
+	public static double evaluate(String poem) {
+		if(poem ==null ||poem.replace(" ", "").equals("")) {
+			return 0;
+		}
+		
+		String[] lines = poem.split("\n");
 		// init properties and pipeline
 		props.setProperty("annotators", "tokenize, ssplit, pos");	
 		pipeline = new StanfordCoreNLP(props);
 		int num = 0; // init avg counter
-		int denom = poems.length;
+		int denom = lines.length;
 		
 		
 		
 		// evaluate fitness
 		double fit = 0;
-		for(String line: poems) {
+		for(String line: lines) {
+			line = line.replaceAll("[^a-zA-Z0-9\\s]", " ");
+			System.out.println(line);
 			fit += lineEval(line);
 			num+=line.split(" ").length;
 		}
 		//return dupLines(poems,1); //for testing 
-		return (fit/denom + lengthFit(num/denom)+dupLines(poems,1))/3; //return the average of all fitnesses 
+		System.out.println(fit/denom);
+		System.out.println(lengthFit(num/denom));
+		System.out.println(dupLines(lines,1));
+		return (fit/denom + lengthFit(num/denom)+dupLines(lines,1))/3; //return the average of all fitnesses 
 	}
 	
 	/**
@@ -65,9 +78,12 @@ public class Grammar {
 	 * >POS meanings: https://cs.nyu.edu/grishman/jet/guide/PennPOS.html
 	 */
 	public static int lineEval(String line) {
-		//if(repeat(line)) { //two or more parts of speech in a row
-			//return 0;
-		//}
+		if(line.replace(" ", "").equals("")) {
+			return 0;
+		}		
+		if(repeat(line)) { //two or more ILLEGAL parts of speech in a row
+			return 0;
+		}
 		if(!validEnd(line)) { //ends with legal word
 			return 0;
 		}
@@ -120,7 +136,7 @@ public class Grammar {
 	/** 
 	 * @param avg
 	 * @return fitness: double between 0 and 1
-	 * this evaluates the average length
+	 * this evaluates the average length of lines
 	 */
 	public static double lengthFit(double avg) {
 		if(avg<avgLength) { 
@@ -142,9 +158,10 @@ public class Grammar {
 	 */
 	public static boolean validEnd(String line) {
 		String[] words = line.split(" ");
-		String lastPOS = POS(words[words.length-1]).get(TokensAnnotation.class)
+		String lastWord = words[words.length-1].toLowerCase();
+		String lastPOS = POS(lastWord).get(TokensAnnotation.class)
 				.get(0).get(PartOfSpeechAnnotation.class);
-		if(lastPOS.equals("MD")) {
+		if(lastPOS.equals("MD") || lastWord.equals("a") || lastWord.equals("the")) {
 			return false;
 		}	
 		return true;
@@ -161,10 +178,19 @@ public class Grammar {
 		String last = "";
 		for (CoreLabel token: sentence.get(TokensAnnotation.class)) {
 			String current = token.get(PartOfSpeechAnnotation.class);
-			if(current.equals(last)) {
+			if(current.equals(last) && contains(current) ) {
 				return true;
 			}
 			last = current;
+		}
+		return false;
+	}
+	
+	public static boolean contains(String a) {
+		for(String s: illPOS) {
+			if(a.equals(s)) {
+				return true;
+			}
 		}
 		return false;
 	}
